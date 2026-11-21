@@ -1,0 +1,22 @@
+
+name: Update product search pages
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check repository
+        uses: actions/checkout@v4
+
+      - name: Confirm setup
+        run: |
+          echo "Product search automation setup is ready."
+          echo "Product page generator will be added next."
