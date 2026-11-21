@@ -78,7 +78,7 @@ function render(){
    if(paths.length>1)photo.append(make('span','photo-count',paths.length+(lang==='ko'?'장':'枚')));
   }else photo.textContent=lang==='ko'?'제품 사진 준비 중':'製品写真 準備中';
   const content=make('div','content');content.append(make('h3','',productName(p)));
-  const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',spec));
+const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',(lang==='ko'?'제품 규격 ':'製品規格 ')+spec));
   const desc=p['description_'+lang]||p.description_ko;
   if(desc)content.append(make('p','desc',desc));
   const btn=make('button','detail-trigger',lang==='ko'?'자세히 보기':'詳細を見る');btn.type='button';btn.onclick=()=>openDetail(p);
