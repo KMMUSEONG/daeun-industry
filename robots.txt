@@ -1,0 +1,5 @@
+# 참고: GitHub Pages 프로젝트 경로 /daeun-industry/의 robots.txt는
+# 호스트 루트 robots.txt로 인식되지 않습니다. 네이버에는 sitemap.xml URL을 직접 제출하세요.
+User-agent: *
+Allow: /
+Sitemap: https://kmmuseong.github.io/daeun-industry/sitemap.xml
