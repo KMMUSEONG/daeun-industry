@@ -172,7 +172,29 @@ async function deleteProduct(p){
   status('제품이 삭제되었습니다.');await loadProducts();
  }catch(e){status('삭제 실패: '+e.message)}
 }
+function showPhoneInquiry(e){
+ // On mobile, keep the native telephone link. On desktop, show the number instead.
+ if(window.matchMedia('(max-width: 767px) and (pointer: coarse)').matches)return;
+ e.preventDefault();
+ const ja=lang==='ja';
+ $('phoneModalTitle').textContent=ja?'製品・お取引のお問い合わせ':'제품 및 거래 문의';
+ $('phoneModalDesc').textContent=ja?'製品については下記の電話番号までお問い合わせください。':'제품에 관한 문의는 아래 번호로 연락해 주세요.';
+ $('phoneDisplay').textContent=ja?'+82-10-3823-6637':'010-3823-6637';
+ $('phoneCopy').textContent=ja?'電話番号をコピー':'전화번호 복사하기';
+ $('phoneClose').textContent=ja?'閉じる ×':'닫기 ×';
+ $('phoneCopyStatus').textContent='';
+ $('phoneModal').hidden=false;$('phoneCopy').focus();
+}
+function closePhoneInquiry(){$('phoneModal').hidden=true}
 function init(){ $('ko').onclick=()=>setLang('ko');$('ja').onclick=()=>setLang('ja');
+ document.querySelectorAll('a[href^="tel:"]').forEach(a=>a.addEventListener('click',showPhoneInquiry));
+ $('phoneClose').onclick=closePhoneInquiry;
+ $('phoneModal').addEventListener('click',e=>{if(e.target===$('phoneModal'))closePhoneInquiry()});
+ $('phoneCopy').onclick=async()=>{
+  const number=$('phoneDisplay').textContent;
+  try{await navigator.clipboard.writeText(number);$('phoneCopyStatus').textContent=lang==='ja'?'電話番号をコピーしました。':'전화번호를 복사했어요.'}
+  catch{const temp=document.createElement('textarea');temp.value=number;temp.style.position='fixed';temp.style.opacity='0';document.body.appendChild(temp);temp.select();const ok=document.execCommand('copy');temp.remove();$('phoneCopyStatus').textContent=ok?(lang==='ja'?'電話番号をコピーしました。':'전화번호를 복사했어요.'):(lang==='ja'?'上の番号を選択してコピーしてください。':'위 전화번호를 선택해 복사해 주세요.')}
+ };
  $('adminOpen').onclick=async()=>{$('adminModal').hidden=false;status(configured?'':'config.js에 Supabase 연결 정보를 먼저 입력해 주세요.');if(session){await authenticate();showManage()}};
  $('adminClose').onclick=()=>{$('adminModal').hidden=true};
  $('adminModal').addEventListener('click',e=>{if(e.target===$('adminModal'))$('adminModal').hidden=true});
@@ -183,6 +205,7 @@ function init(){ $('ko').onclick=()=>setLang('ko');$('ja').onclick=()=>setLang('
  $('zoomClose').onclick=()=>{$('zoomModal').hidden=true};
  $('zoomModal').onclick=e=>{if(e.target===$('zoomModal'))$('zoomModal').hidden=true};
  document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!$('phoneModal').hidden){closePhoneInquiry();return}
   if(e.key==='Escape'){if(!$('zoomModal').hidden)$('zoomModal').hidden=true;else if(!$('detailModal').hidden){$('detailModal').hidden=true;detailProduct=null}}
   if(!$('detailModal').hidden&&$('zoomModal').hidden&&e.key==='ArrowLeft'){$('detailPrev').click()}
   if(!$('detailModal').hidden&&$('zoomModal').hidden&&e.key==='ArrowRight'){$('detailNext').click()}
