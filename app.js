@@ -64,6 +64,13 @@ async function loadAnalytics(){
 }
 
 function productName(p){return p['name_'+lang]||p.name_ko||''}
+function productCategory(p){
+ const name=String(p.name_ko||p.name_ja||'').toLowerCase();
+ if(/육묘|育苗|모종|seedling/.test(name))return 'seed';
+ if(/점적|호스|테이프|灌水|ホース|テープ|irrigation/.test(name))return 'water';
+ if(/화분|ポット|pot/.test(name))return 'pot';
+ return 'other';
+}
 function render(){
  document.documentElement.lang=lang;
  document.querySelectorAll('[data-ko]').forEach(e=>{e.innerHTML=e.dataset[lang]});
@@ -72,6 +79,7 @@ function render(){
  if(!products.length){cards.append(make('p','sub',lang==='ko'?'등록된 제품이 없습니다.':'登録された製品はありません。'));return}
  for(const p of products){
   const card=make('article','card'),photo=make('div','photo'),paths=photoPaths(p.image_path);
+   card.dataset.category=productCategory(p);card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label',productName(p)+' 상세정보');
   if(paths.length){
    const img=make('img');img.src=imageUrl(paths[0]);img.alt=productName(p);img.loading='lazy';
    img.onerror=()=>{photo.replaceChildren(make('span','',lang==='ko'?'사진 준비 중':'写真準備中'))};photo.append(img);
@@ -79,11 +87,8 @@ function render(){
   }else photo.textContent=lang==='ko'?'제품 사진 준비 중':'製品写真 準備中';
   const content=make('div','content');content.append(make('h3','',productName(p)));
 const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',(lang==='ko'?'제품 규격 ':'製品規格 ')+spec));
-  const desc=p['description_'+lang]||p.description_ko;
-  if(desc)content.append(make('p','desc',desc));
-  const btn=make('button','detail-trigger',lang==='ko'?'자세히 보기':'詳細を見る');btn.type='button';btn.onclick=()=>openDetail(p);
-  content.append(btn);photo.style.cursor='pointer';photo.tabIndex=0;photo.setAttribute('role','button');photo.setAttribute('aria-label',productName(p)+' '+(lang==='ko'?'상세보기':'詳細'));
-  photo.onclick=()=>openDetail(p);photo.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(p)}};
+    card.onclick=()=>openDetail(p);
+   card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(p)}};
   card.append(photo,content);cards.append(card);
  }
 }
