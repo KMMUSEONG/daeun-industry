@@ -86,7 +86,8 @@ function render(){
    if(paths.length>1)photo.append(make('span','photo-count',paths.length+(lang==='ko'?'장':'枚')));
   }else photo.textContent=lang==='ko'?'제품 사진 준비 중':'製品写真 準備中';
   const content=make('div','content');content.append(make('h3','',productName(p)));
-const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',(lang==='ko'?'제품 규격 ':'製品規格 ')+spec));
+const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',(lang==='ko'?'전체 제품 규격: ':'製品全体サイズ：')+spec));
+  const potSpec=p['pot_spec_'+lang]||p.pot_spec_ko;if(potSpec)content.append(make('p','spec',(lang==='ko'?'개별 포트 규격: ':'各ポットサイズ：')+potSpec));
     // 독립 제품 URL을 검색엔진이 발견하도록 링크 제공 (카드 클릭 팝업은 유지)
     if(configured && /^[a-zA-Z0-9_-]{1,100}$/.test(String(p.id))){
       const seoLink=make('a','product-page-link',lang==='ko'?'제품 페이지 보기':'製品ページを見る');
@@ -105,9 +106,13 @@ function renderDetail(){
  if(!detailProduct)return;
  const p=detailProduct,paths=photoPaths(p.image_path),photo=$('detailPhoto');photo.replaceChildren();
  $('detailTitle').textContent=productName(p);
- $('detailSpecLabel').textContent=lang==='ko'?'제품 규격':'製品規格';
+ $('detailSpecLabel').textContent=lang==='ko'?'전체 제품 규격':'製品全体サイズ';
  $('detailDescLabel').textContent=lang==='ko'?'제품 설명':'製品説明';
  $('detailSpec').textContent=p['spec_'+lang]||p.spec_ko||(lang==='ko'?'규격은 문의해 주세요.':'規格はお問い合わせください。');
+ const potSpec=p['pot_spec_'+lang]||p.pot_spec_ko||'';
+ $('detailPotSpecWrap').hidden=!potSpec;
+ $('detailPotSpecLabel').textContent=lang==='ko'?'개별 포트 규격':'各ポットサイズ';
+ $('detailPotSpec').textContent=potSpec;
  $('detailDesc').textContent=p['description_'+lang]||p.description_ko||(lang==='ko'?'자세한 제품 정보는 문의해 주세요.':'詳しくはお問い合わせください。');
  $('detailContact').textContent=lang==='ko'?'제품 문의하기':'製品のお問い合わせ';
  if(paths.length){detailIndex=(detailIndex+paths.length)%paths.length;const img=make('img');img.src=imageUrl(paths[detailIndex]);img.alt=productName(p)+' '+(detailIndex+1);img.onerror=()=>{photo.replaceChildren(make('span','',lang==='ko'?'사진을 불러오지 못했습니다.':'写真を読み込めませんでした。'))};photo.classList.remove('empty');photo.append(img);photo.onclick=()=>openZoom(img.src)}
@@ -224,7 +229,7 @@ function renderGalleryEditor(){
 }
 function editProduct(p){
  $('productForm').hidden=false;$('formTitle').textContent=p?'제품 수정':'새 제품 등록';
- for(const [id,field] of Object.entries({productId:'id',nameKo:'name_ko',nameJa:'name_ja',specKo:'spec_ko',specJa:'spec_ja',descKo:'description_ko',descJa:'description_ja',sortOrder:'sort_order'}))$(id).value=p?(p[field]??''):id==='sortOrder'?String(products.length):'';
+ for(const [id,field] of Object.entries({productId:'id',nameKo:'name_ko',nameJa:'name_ja',specKo:'spec_ko',specJa:'spec_ja',potSpecKo:'pot_spec_ko',potSpecJa:'pot_spec_ja',descKo:'description_ko',descJa:'description_ja',sortOrder:'sort_order'}))$(id).value=p?(p[field]??''):id==='sortOrder'?String(products.length):'';
  editingPhotos=p?photoPaths(p.image_path).slice():[];renderGalleryEditor();
  $('imageFile').value='';$('imagePreview').hidden=true;
  $('productForm').scrollIntoView({behavior:'smooth',block:'start'});
@@ -243,7 +248,7 @@ async function saveProduct(ev){
   if(editingPhotos.length+files.length>20)throw Error('사진은 제품당 최대 20장까지 등록할 수 있습니다.');
   for(const file of files){uploaded.push(await uploadImage(file))}
   const nextPaths=[...editingPhotos,...uploaded];
-  const obj={name_ko:$('nameKo').value.trim(),name_ja:$('nameJa').value.trim(),spec_ko:$('specKo').value.trim(),spec_ja:$('specJa').value.trim(),description_ko:$('descKo').value.trim(),description_ja:$('descJa').value.trim(),sort_order:Number($('sortOrder').value),image_path:encodePhotoPaths(nextPaths)};
+  const obj={name_ko:$('nameKo').value.trim(),name_ja:$('nameJa').value.trim(),spec_ko:$('specKo').value.trim(),spec_ja:$('specJa').value.trim(),pot_spec_ko:$('potSpecKo').value.trim(),pot_spec_ja:$('potSpecJa').value.trim(),description_ko:$('descKo').value.trim(),description_ja:$('descJa').value.trim(),sort_order:Number($('sortOrder').value),image_path:encodePhotoPaths(nextPaths)};
   await request('/rest/v1/products'+(id?'?id=eq.'+encodeURIComponent(id):''),{method:id?'PATCH':'POST',auth:true,body:id?obj:[obj],headers:{Prefer:'return=minimal'}});
   const oldPaths=old?photoPaths(old.image_path):[];
   for(const path of oldPaths){if(!nextPaths.includes(path))await removeImage(path)}
