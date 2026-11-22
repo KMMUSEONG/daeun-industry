@@ -60,15 +60,16 @@ def page(p, filename):
     ko = str(p.get('name_ko') or p.get('name_ja') or '제품')
     ja = str(p.get('name_ja') or ko)
     spec = str(p.get('spec_ko') or '')
+    pot_spec = str(p.get('pot_spec_ko') or '')
     desc = str(p.get('description_ko') or '')
     photos = paths(p.get('image_path'))
     canonical = SITE + 'products/' + urllib.parse.quote(filename)
-    summary = (desc or (ko + (' · ' + spec if spec else '') + ' | 대운산업 제품 정보 및 문의')).replace('\n', ' ').strip()[:155]
+    summary = (desc or (ko + (' · 전체 규격 ' + spec if spec else '') + (' · 개별 포트 규격 ' + pot_spec if pot_spec else '') + ' | 대운산업 제품 정보 및 문의')).replace('\n', ' ').strip()[:155]
     img = image_url(photos[0]) if photos else ''
     gallery = ''.join('<img loading="lazy" src="' + esc(image_url(path)) + '" alt="' + esc(ko) + ' 제품 사진" />' for path in photos)
     if not gallery:
         gallery = '<div class="placeholder">제품 사진 준비 중</div>'
-    ld = {'@context':'https://schema.org','@type':'Product','name':ko,'alternateName':ja,'description':desc or spec or ko,'url':canonical,'brand':{'@type':'Brand','name':'대운산업'}}
+    ld = {'@context':'https://schema.org','@type':'Product','name':ko,'alternateName':ja,'description':desc or (('전체 규격 '+spec if spec else '') + (' / 개별 포트 규격 '+pot_spec if pot_spec else '')).strip(' /') or ko,'url':canonical,'brand':{'@type':'Brand','name':'대운산업'}}
     if img:
         ld['image'] = [image_url(path) for path in photos]
     json_ld = json.dumps(ld, ensure_ascii=False).replace('<', '\\u003c')
@@ -83,7 +84,8 @@ def page(p, filename):
 <body><header><a class="brand" href="../">Daeun Industry<small>대운산업</small></a><a class="back" href="../#products">← 전체 제품 보기</a></header>
 <main><div class="crumb"><a href="../">홈</a> / <a href="../#products">제품 소개</a> / {esc(ko)}</div>
 <div class="layout"><div class="photos">{gallery}</div><article><h1>{esc(ko)}</h1><div class="muted">{esc(ja)}</div>
-{('<h2>제품 규격</h2><div class="copy">'+esc(spec)+'</div>') if spec else ''}
+{('<h2>전체 제품 규격</h2><div class="copy">'+esc(spec)+'</div>') if spec else ''}
+{('<h2>개별 포트 규격</h2><div class="copy">'+esc(pot_spec)+'</div>') if pot_spec else ''}
 {('<h2>제품 설명</h2><div class="copy">'+esc(desc)+'</div>') if desc else ''}
 <a class="call" href="tel:+821038236637">제품 문의하기 · 010-3823-6637</a></article></div></main>
 <footer>© 대운산업 · Daeun Industry</footer></body></html>'''
