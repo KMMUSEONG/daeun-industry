@@ -207,11 +207,46 @@ async function moveHero(i,delta){
 function showManage(){ $('loginArea').hidden=isAdmin;$('manageArea').hidden=!isAdmin;if(isAdmin){renderAdmin();loadAnalytics();loadHeroSlides()} }
 async function signIn(email,password){const s=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password}});saveSession(s);if(!await authenticate()){saveSession(null);throw Error('이 계정은 관리자 권한이 없습니다. Supabase의 admin_users 등록을 확인하세요.')}}
 function renderAdmin(){
+ renderOrderManager();
  const root=$('adminList');root.replaceChildren();
  for(const p of products){const row=make('div','admin-row'),paths=photoPaths(p.image_path);
   if(paths.length){const img=make('img');img.src=imageUrl(paths[0]);img.alt='';img.style.objectFit='contain';row.append(img)}
   row.append(make('span','row-title',p.name_ko));const edit=make('button','','수정'),del=make('button','','삭제');edit.type='button';del.type='button';
   edit.addEventListener('click',()=>editProduct(p));del.addEventListener('click',()=>deleteProduct(p));row.append(edit,del);root.append(row)}
+}
+// Batch order editor: only the Save button writes to Supabase.
+let orderDraft=null;
+let orderSaving=false;
+function renderOrderManager(){
+ const root=$('orderManagerList');if(!root)return;
+ if(!orderDraft||orderDraft.length!==products.length||orderDraft.some(id=>!products.some(p=>String(p.id)===id))){orderDraft=products.map(p=>String(p.id));}
+ root.replaceChildren();
+ orderDraft.forEach((id,i)=>{
+  const p=products.find(x=>String(x.id)===id);if(!p)return;
+  const row=make('div','order-manager-row'),num=make('span','order-manager-number',String(i+1)),name=make('span','order-manager-title',p.name_ko),actions=make('div','order-manager-actions');
+  const up=make('button','','↑'),down=make('button','','↓');up.type=down.type='button';up.title='위로 이동';down.title='아래로 이동';up.disabled=orderSaving||i===0;down.disabled=orderSaving||i===orderDraft.length-1;
+  up.onclick=()=>moveOrder(i,-1);down.onclick=()=>moveOrder(i,1);actions.append(up,down);row.append(num,name,actions);root.append(row);
+ });
+ const dirty=orderDraft.some((id,i)=>id!==String(products[i]?.id));
+ $('orderSave').disabled=orderSaving||!dirty;$('orderReset').disabled=orderSaving||!dirty;
+ if(!dirty&&!orderSaving)$('orderStatus').textContent='현재 홈페이지 표시 순서와 동일합니다.';
+}
+function moveOrder(i,d){if(orderSaving)return;const j=i+d;if(j<0||j>=orderDraft.length)return;[orderDraft[i],orderDraft[j]]=[orderDraft[j],orderDraft[i]];$('orderStatus').textContent='순서가 변경되었습니다. 아직 저장되지 않았습니다.';renderOrderManager()}
+function resetOrder(){if(orderSaving)return;orderDraft=products.map(p=>String(p.id));renderOrderManager()}
+async function saveOrder(){
+ if(!isAdmin||orderSaving||!orderDraft)return;
+ const desired=[...orderDraft];if(desired.length!==products.length||desired.some(id=>!products.some(p=>String(p.id)===id)))return $('orderStatus').textContent='제품 목록이 변경되었습니다. 새로고침 후 다시 시도해 주세요.';
+ orderSaving=true;renderOrderManager();$('orderStatus').textContent='순서를 저장하고 있습니다. 창을 닫지 마세요...';
+ try{
+  if(session?.expires_at&&Date.now()/1000>session.expires_at-60&&!await refreshSession())throw Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+  // Use a temporary unique high range so existing sort values cannot conflict.
+  const high=Math.max(100000,...products.map(p=>Number(p.sort_order)||0))+desired.length+10;
+  for(let i=0;i<desired.length;i++)await request('/rest/v1/products?id=eq.'+encodeURIComponent(desired[i]),{method:'PATCH',auth:true,body:{sort_order:high+i}});
+  for(let i=0;i<desired.length;i++)await request('/rest/v1/products?id=eq.'+encodeURIComponent(desired[i]),{method:'PATCH',auth:true,body:{sort_order:i+1}});
+  $('orderStatus').textContent='저장되었습니다. 홈페이지의 제품 순서도 변경되었습니다.';
+  await loadProducts();
+ }catch(e){$('orderStatus').textContent='저장 중 오류: '+e.message+' 일부 순서만 반영되었을 수 있습니다. 새로고침 후 확인해 주세요.';await loadProducts().catch(()=>{});}
+ finally{orderSaving=false;renderOrderManager()}
 }
 function renderGalleryEditor(){
  const root=$('galleryList');root.replaceChildren();
@@ -306,6 +341,7 @@ function init(){ $('ko').onclick=()=>setLang('ko');$('ja').onclick=()=>setLang('
  $('logout').onclick=async()=>{try{if(session)await request('/auth/v1/logout',{method:'POST',auth:true})}catch{}saveSession(null);isAdmin=false;showManage();status('로그아웃했습니다.')};
  $('refreshAnalytics').onclick=loadAnalytics;
  $('heroAdd').onclick=addHero; $('heroRefresh').onclick=loadHeroSlides;
+ $('orderSave').onclick=saveOrder; $('orderReset').onclick=resetOrder;
  $('newProduct').onclick=()=>editProduct(null);$('cancelEdit').onclick=()=>{$('productForm').hidden=true};$('productForm').onsubmit=saveProduct;
  $('imageFile').onchange=()=>{const files=Array.from($('imageFile').files);status(files.length?files.length+'장의 사진을 선택했습니다. 저장하면 기존 사진 뒤에 추가됩니다.':'');$('imagePreview').hidden=true};
  $('resetPassword').onclick=async()=>{const email=$('email').value.trim();if(!email)return status('먼저 관리자 이메일을 입력해 주세요.');try{await request('/auth/v1/recover',{method:'POST',body:{email}});status('등록된 이메일이라면 비밀번호 재설정 메일이 발송됩니다.')}catch(e){status('재설정 요청 실패: '+e.message)}};
