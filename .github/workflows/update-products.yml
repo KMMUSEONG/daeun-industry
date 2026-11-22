@@ -1,22 +1,36 @@
-
 name: Update product search pages
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: '17 */6 * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  prepare:
+  update-products:
     runs-on: ubuntu-latest
     steps:
-      - name: Check repository
+      - name: Check out website
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      - name: Confirm setup
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate product pages and sitemap
+        run: python scripts/generate_products.py
+
+      - name: Save generated pages
         run: |
-          echo "Product search automation setup is ready."
-          echo "Product page generator will be added next."
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A products sitemap.xml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Auto-update product search pages'
+            git push
+          fi
