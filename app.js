@@ -88,14 +88,7 @@ function render(){
   const content=make('div','content');content.append(make('h3','',productName(p)));
 const spec=p['spec_'+lang]||p.spec_ko;if(spec)content.append(make('p','spec',(lang==='ko'?'전체 제품 규격: ':'製品全体サイズ：')+spec));
   const potSpec=p['pot_spec_'+lang]||p.pot_spec_ko;if(potSpec)content.append(make('p','spec',(lang==='ko'?'개별 포트 규격: ':'各ポットサイズ：')+potSpec));
-    // 독립 제품 URL을 검색엔진이 발견하도록 링크 제공 (카드 클릭 팝업은 유지)
-    if(configured && /^[a-zA-Z0-9_-]{1,100}$/.test(String(p.id))){
-      const seoLink=make('a','product-page-link',lang==='ko'?'제품 페이지 보기':'製品ページを見る');
-      seoLink.href='./products/'+encodeURIComponent(String(p.id))+'.html';
-      seoLink.style.cssText='display:inline-block;margin-top:7px;font-size:12px;color:#276449;text-decoration:underline;text-underline-offset:3px';
-      seoLink.onclick=e=>e.stopPropagation();
-      content.append(seoLink);
-    }
+    // 검색용 제품 페이지는 GitHub와 사이트맵에 유지하며, 목록에서는 중복 링크를 숨깁니다.
     card.onclick=e=>{if(e.target.closest('a'))return;openDetail(p)};
    card.onkeydown=e=>{if(e.target.closest('a'))return;if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(p)}};
   card.append(photo,content);cards.append(card);
@@ -115,8 +108,27 @@ function renderDetail(){
  $('detailPotSpec').textContent=potSpec;
  $('detailDesc').textContent=p['description_'+lang]||p.description_ko||(lang==='ko'?'자세한 제품 정보는 문의해 주세요.':'詳しくはお問い合わせください。');
  $('detailContact').textContent=lang==='ko'?'제품 문의하기':'製品のお問い合わせ';
- if(paths.length){detailIndex=(detailIndex+paths.length)%paths.length;const img=make('img');img.src=imageUrl(paths[detailIndex]);img.alt=productName(p)+' '+(detailIndex+1);img.onerror=()=>{photo.replaceChildren(make('span','',lang==='ko'?'사진을 불러오지 못했습니다.':'写真を読み込めませんでした。'))};photo.classList.remove('empty');photo.append(img);photo.onclick=()=>openZoom(img.src)}
- else{photo.classList.add('empty');photo.textContent=lang==='ko'?'제품 사진 준비 중':'製品写真 準備中';photo.onclick=null}
+  photo.classList.remove('has-thumbnails');
+  if(paths.length){
+   detailIndex=(detailIndex+paths.length)%paths.length;
+   photo.classList.remove('empty');
+   const main=make('div','detail-main-image'),img=make('img');
+   img.src=imageUrl(paths[detailIndex]);img.alt=productName(p)+' '+(detailIndex+1);
+   img.onerror=()=>{main.replaceChildren(make('span','',lang==='ko'?'사진을 불러오지 못했습니다.':'写真を読み込めませんでした。'))};
+   main.append(img);main.onclick=()=>openZoom(img.src);photo.append(main);photo.onclick=null;
+   if(paths.length>1){
+    photo.classList.add('has-thumbnails');
+    const strip=make('div','detail-thumbnails');strip.setAttribute('aria-label',lang==='ko'?'제품 사진 미리보기':'製品写真のサムネイル');
+    paths.forEach((path,i)=>{
+     const button=make('button','detail-thumbnail'+(i===detailIndex?' is-selected':''));
+     button.type='button';button.setAttribute('aria-label',(lang==='ko'?'사진 ':'写真 ')+(i+1));
+     button.setAttribute('aria-pressed',String(i===detailIndex));
+     const thumb=make('img');thumb.src=imageUrl(path);thumb.alt='';thumb.loading='lazy';
+     button.append(thumb);button.onclick=()=>{detailIndex=i;renderDetail()};strip.append(button);
+    });
+    photo.append(strip);
+   }
+  }else{photo.classList.add('empty');photo.textContent=lang==='ko'?'제품 사진 준비 중':'製品写真 準備中';photo.onclick=null}
  $('detailCounter').textContent=paths.length?(detailIndex+1)+' / '+paths.length:'';
  $('detailPrev').disabled=paths.length<2;$('detailNext').disabled=paths.length<2;
 }
