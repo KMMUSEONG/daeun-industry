@@ -112,7 +112,81 @@ async function authenticate(){if(!session)return false;
  try{const data=await request('/rest/v1/admin_users?select=user_id&limit=1',{auth:true});isAdmin=Array.isArray(data)&&data.length>0;return isAdmin}
  catch(e){if(await refreshSession()){try{const data=await request('/rest/v1/admin_users?select=user_id&limit=1',{auth:true});isAdmin=data.length>0;return isAdmin}catch{}}isAdmin=false;return false}
 }
-function showManage(){ $('loginArea').hidden=isAdmin;$('manageArea').hidden=!isAdmin;if(isAdmin){renderAdmin();loadAnalytics()} }
+
+// 메인 사진은 Supabase hero_slides 테이블에 저장합니다. 테이블 설치 전에는 기본 사진을 표시합니다.
+let heroItems=[];
+async function loadHeroSlides(){
+ if(!configured)return;
+ try{
+  const data=await request('/rest/v1/hero_slides?select=id,image_path,sort_order&order=sort_order.asc,id.asc');
+  heroItems=Array.isArray(data)?data:[];
+  if(heroItems.length&&window.DAEUN_HERO)window.DAEUN_HERO.render(heroItems.map(p=>imageUrl(p.image_path)));
+  if(isAdmin)renderHeroAdmin();
+ }catch(e){if(isAdmin){$('heroAdminStatus').textContent='사진 관리 기능을 사용하려면 먼저 제공된 hero-slides-setup.sql을 Supabase에서 한 번 실행해야 합니다. ('+e.message+')'}else console.debug('메인 사진 기본값 사용:',e.message)}
+}
+function renderHeroAdmin(){
+ const root=$('heroAdminList');if(!root)return;root.replaceChildren();
+ if(!heroItems.length){root.append(make('p','hint','등록된 관리자 사진이 없으면 기본 사진 3장이 표시됩니다.'));return}
+ heroItems.forEach((p,i)=>{
+  const row=make('div','hero-admin-item'),img=make('img');img.src=imageUrl(p.image_path);img.alt='메인 사진 '+(i+1);
+  row.append(img,make('span','',String(i+1)+'번째 사진'));
+  const actions=make('div','actions');
+  for(const [label,action,disabled] of [['↑',()=>moveHero(i,-1),i===0],['↓',()=>moveHero(i,1),i===heroItems.length-1],['교체',()=>replaceHero(p),false],['삭제',()=>deleteHero(p),false]]){
+   const b=make('button','',label);b.type='button';b.disabled=disabled;b.onclick=action;actions.append(b)
+  }
+  row.append(actions);root.append(row)
+ });
+}
+async function heroTask(fn){
+ const statusEl=$('heroAdminStatus'),add=$('heroAdd');add.disabled=true;statusEl.textContent='처리 중입니다...';
+ try{
+  if(!isAdmin)throw Error('관리자 로그인이 필요합니다.');
+  if(session?.expires_at&&Date.now()/1000>session.expires_at-60&&!await refreshSession())throw Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+  await fn();statusEl.textContent='저장되었습니다. 홈페이지를 새로고침하면 변경된 사진을 확인할 수 있습니다.';await loadHeroSlides();
+ }catch(e){statusEl.textContent='작업 실패: '+e.message}finally{add.disabled=false}
+}
+async function addHero(){
+ const input=$('heroFile'),files=[...input.files];
+ if(!files.length)return $('heroAdminStatus').textContent='먼저 사진을 선택해 주세요.';
+ if(heroItems.length+files.length>6)return $('heroAdminStatus').textContent='메인 사진은 최대 6장까지 등록할 수 있습니다.';
+ await heroTask(async()=>{
+  const uploaded=[];
+  try{
+   for(const file of files)uploaded.push(await uploadImage(file));
+   const rows=uploaded.map((path,i)=>({image_path:path,sort_order:heroItems.length+i}));
+   await request('/rest/v1/hero_slides',{method:'POST',auth:true,body:rows,headers:{Prefer:'return=minimal'}});
+   input.value='';
+  }catch(e){for(const path of uploaded)await removeImage(path);throw e}
+ });
+}
+async function replaceHero(item){
+ const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp';
+ input.onchange=()=>{const file=input.files[0];if(!file)return;heroTask(async()=>{
+  const path=await uploadImage(file);
+  try{await request('/rest/v1/hero_slides?id=eq.'+encodeURIComponent(item.id),{method:'PATCH',auth:true,body:{image_path:path}})}catch(e){await removeImage(path);throw e}
+  await removeImage(item.image_path);
+ })};input.click();
+}
+async function deleteHero(item){
+ if(!confirm('이 메인 사진을 삭제할까요?'))return;
+ await heroTask(async()=>{
+  await request('/rest/v1/hero_slides?id=eq.'+encodeURIComponent(item.id),{method:'DELETE',auth:true});
+  await removeImage(item.image_path);
+  // 모두 삭제한 경우에는 기본 사진 3장으로 돌아갑니다.
+  if(heroItems.length===1&&window.DAEUN_HERO)window.DAEUN_HERO.render(['./hero-1.webp','./hero-2.webp','./hero-3.webp']);
+ });
+}
+async function moveHero(i,delta){
+ const j=i+delta;if(j<0||j>=heroItems.length)return;
+ await heroTask(async()=>{
+  // 순서 값이 겹치지 않도록 임시 큰 숫자로 이동합니다.
+  const first=heroItems[i],second=heroItems[j],a=first.sort_order,b=second.sort_order;
+  await request('/rest/v1/hero_slides?id=eq.'+encodeURIComponent(first.id),{method:'PATCH',auth:true,body:{sort_order:100000+i}});
+  await request('/rest/v1/hero_slides?id=eq.'+encodeURIComponent(second.id),{method:'PATCH',auth:true,body:{sort_order:a}});
+  await request('/rest/v1/hero_slides?id=eq.'+encodeURIComponent(first.id),{method:'PATCH',auth:true,body:{sort_order:b}});
+ });
+}
+function showManage(){ $('loginArea').hidden=isAdmin;$('manageArea').hidden=!isAdmin;if(isAdmin){renderAdmin();loadAnalytics();loadHeroSlides()} }
 async function signIn(email,password){const s=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password}});saveSession(s);if(!await authenticate()){saveSession(null);throw Error('이 계정은 관리자 권한이 없습니다. Supabase의 admin_users 등록을 확인하세요.')}}
 function renderAdmin(){
  const root=$('adminList');root.replaceChildren();
@@ -213,12 +287,14 @@ function init(){ $('ko').onclick=()=>setLang('ko');$('ja').onclick=()=>setLang('
  $('loginForm').onsubmit=async e=>{e.preventDefault();if(!configured)return status('서버 연결 설정을 먼저 완료해 주세요.');status('로그인 확인 중...');try{await signIn($('email').value.trim(),$('password').value);$('password').value='';status('관리자로 로그인했습니다.');showManage()}catch(err){status('로그인 실패: '+err.message)}};
  $('logout').onclick=async()=>{try{if(session)await request('/auth/v1/logout',{method:'POST',auth:true})}catch{}saveSession(null);isAdmin=false;showManage();status('로그아웃했습니다.')};
  $('refreshAnalytics').onclick=loadAnalytics;
+ $('heroAdd').onclick=addHero; $('heroRefresh').onclick=loadHeroSlides;
  $('newProduct').onclick=()=>editProduct(null);$('cancelEdit').onclick=()=>{$('productForm').hidden=true};$('productForm').onsubmit=saveProduct;
  $('imageFile').onchange=()=>{const files=Array.from($('imageFile').files);status(files.length?files.length+'장의 사진을 선택했습니다. 저장하면 기존 사진 뒤에 추가됩니다.':'');$('imagePreview').hidden=true};
  $('resetPassword').onclick=async()=>{const email=$('email').value.trim();if(!email)return status('먼저 관리자 이메일을 입력해 주세요.');try{await request('/auth/v1/recover',{method:'POST',body:{email}});status('등록된 이메일이라면 비밀번호 재설정 메일이 발송됩니다.')}catch(e){status('재설정 요청 실패: '+e.message)}};
  $('changePassword').onclick=async()=>{const password=prompt('새 비밀번호를 입력하세요 (12자 이상 권장).');if(password===null)return;if(password.length<12)return status('12자 이상의 비밀번호를 입력해 주세요.');try{if(session?.expires_at&&Date.now()/1000>session.expires_at-60&&!await refreshSession())throw Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');await request('/auth/v1/user',{method:'PUT',auth:true,body:{password}});status('비밀번호가 변경되었습니다.')}catch(e){status('비밀번호 변경 실패: '+e.message)}};
  try{session=JSON.parse(localStorage.getItem('daeun_session')||'null')}catch{};
  loadProducts();
+ loadHeroSlides();
  trackEvent('page_view');
 }
 init();
