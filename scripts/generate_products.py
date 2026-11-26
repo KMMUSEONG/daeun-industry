@@ -77,6 +77,7 @@ def page(p, filename):
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(ko)} | 대운산업</title><meta name="description" content="{esc(summary)}">
 <link rel="canonical" href="{esc(canonical)}"><meta name="robots" content="index,follow">
+<link rel="icon" type="image/x-icon" href="https://kmmuseong.github.io/favicon.ico">
 <meta property="og:type" content="product"><meta property="og:title" content="{esc(ko)} | 대운산업"><meta property="og:description" content="{esc(summary)}"><meta property="og:url" content="{esc(canonical)}">
 {('<meta property="og:image" content="'+esc(img)+'">') if img else ''}
 <script type="application/ld+json">{json_ld}</script>
